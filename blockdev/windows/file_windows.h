@@ -37,8 +37,10 @@
 /**@brief   IO raw blockdev get.*/
 struct ext4_blockdev *file_windows_dev_get(void);
 
-/**@brief   Set filrname to open.*/
+/**@brief   Set filename to open.*/
 void file_windows_name_set(const char *n);
 
+/**@brief   Set partition to use within disk */
+void file_windows_partition_set(uint64_t offset, uint64_t size);
 
 #endif /* FILE_WINDOWS_H_ */

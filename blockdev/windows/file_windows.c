@@ -40,6 +40,11 @@
 /**@brief   Default filename.*/
 static const char *fname = "ext2";
 
+/**@brief   If part_length == 0 this is the offset (in bytes) of the partition to write to */
+static uint64_t part_offset = 0;
+/**@brief   Size (in bytes) of the partition to write to, or 0 to use the whole disk */
+static uint64_t part_size = 0;
+
 /**@brief   IO block size.*/
 #define EXT4_IORAW_BSIZE 512
 
@@ -87,14 +92,22 @@ static int file_open(struct ext4_blockdev *bdev)
 		return EIO;
 	}
 
-	disk_size = pdg.Cylinders.QuadPart * (ULONG)pdg.TracksPerCylinder *
-		    (ULONG)pdg.SectorsPerTrack * (ULONG)pdg.BytesPerSector;
-
 	_filedev.bdif->ph_bsize = pdg.BytesPerSector;
-	_filedev.bdif->ph_bcnt = disk_size / pdg.BytesPerSector;
 
-	_filedev.part_offset = 0;
-	_filedev.part_size = disk_size;
+	if (part_size == 0) {
+		/* whole disk */
+		disk_size = pdg.Cylinders.QuadPart * (ULONG)pdg.TracksPerCylinder *
+			(ULONG)pdg.SectorsPerTrack * (ULONG)pdg.BytesPerSector;
+
+		_filedev.bdif->ph_bcnt = disk_size / pdg.BytesPerSector;
+		_filedev.part_offset = 0;
+		_filedev.part_size = disk_size;
+	} else {
+		/* specified partition */
+		_filedev.bdif->ph_bcnt = part_size / pdg.BytesPerSector;
+		_filedev.part_offset = part_offset;
+		_filedev.part_size = part_size;
+	}
 
 	return EOK;
 }
@@ -167,4 +180,9 @@ void file_windows_name_set(const char *n)
 }
 
 /******************************************************************************/
+void file_windows_partition_set(uint64_t offset, uint64_t size)
+{
+	part_offset = offset;
+	part_size = size;
+}
 #endif
