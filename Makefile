@@ -32,6 +32,9 @@ endef
 generic:
 	$(call generate_common,$@)
 
+osx:	
+	$(call generate_common,$@)
+
 cortex-m0:
 	$(call generate_common,$@)
 	
