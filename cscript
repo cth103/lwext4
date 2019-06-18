@@ -1,0 +1,45 @@
+# -*- mode: python -*-
+#
+#    Copyright (C) 2019 Carl Hetherington <cth@carlh.net>
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+
+def build(target, options):
+    if target.platform == 'linux':
+        type = 'generic'
+        blockdev = 'linux'
+        ext = 'so'
+        device = 'dev'
+    elif target.platform == 'osx':
+        type = 'generic'
+        blockdev = 'linux'
+        ext = 'dylib'
+        device = 'dev'
+    elif target.platform == 'windows':
+        type = 'mingw'
+        blockdev = 'windows'
+        ext = 'dll'
+        device = 'windows'
+
+    target.command('mkdir -p %s/include/lwext4' % target.directory)
+    target.command('cp -r include/* %s/include/lwext4' % target.directory)
+    target.command('make %s' % type)
+    target.command('make -j%d -C build_%s' % (target.parallel, type))
+    target.command('cp -r build_%s/include/generated %s/include/lwext4' % (type, target.directory))
+    target.command('cp blockdev/%s/file_%s.h %s/include/lwext4' % (blockdev, device, target.directory))
+    target.command('mkdir -p %s/lib' % target.directory)
+    target.command('cp build_%s/src/liblwext4.%s %s/lib' % (type, ext, target.directory))
+    target.command('cp build_%s/blockdev/libblockdev.%s %s/lib' % (type, ext, target.directory))
