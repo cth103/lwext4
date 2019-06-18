@@ -1,6 +1,6 @@
 # Name of the target
 set(CMAKE_SYSTEM_NAME Windows)
-set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
+set(TOOLCHAIN_PREFIX /opt/mxe/usr/bin/x86_64-w64-mingw32.shared)
 set(CMAKE_SYSTEM_PROCESSOR mingw)
 
 # Toolchain settings
@@ -12,7 +12,7 @@ set(OBJCOPY             objcopy)
 set(OBJDUMP             objdump)
 set(SIZE                size)
 
-set(CMAKE_FIND_ROOT_PATH /usr/${TOOLCHAIN_PREFIX})
+set(CMAKE_FIND_ROOT_PATH /opt/mxe/usr/${TOOLCHAIN_PREFIX})
 
 set(CMAKE_C_FLAGS   "-std=gnu99 -fdata-sections -ffunction-sections" CACHE INTERNAL "c compiler flags")
 set(CMAKE_CXX_FLAGS "-fdata-sections -ffunction-sections" CACHE INTERNAL "cxx compiler flags")

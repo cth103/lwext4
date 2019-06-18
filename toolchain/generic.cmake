@@ -8,7 +8,7 @@ set(AS                  as)
 set(AR                  ar)
 set(OBJCOPY             objcopy)
 set(OBJDUMP             objdump)
-set(SIZE                size)
+# set(SIZE                size)
 
 set(CMAKE_C_FLAGS   "-std=gnu99 -fdata-sections -ffunction-sections" CACHE INTERNAL "c compiler flags")
 set(CMAKE_CXX_FLAGS "-fdata-sections -ffunction-sections" CACHE INTERNAL "cxx compiler flags")

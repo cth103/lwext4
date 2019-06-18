@@ -28,8 +28,8 @@
 #ifndef FILE_WINDOWS_H_
 #define FILE_WINDOWS_H_
 
-#include <ext4_config.h>
-#include <ext4_blockdev.h>
+#include "ext4_config.h"
+#include "ext4_blockdev.h"
 
 #include <stdint.h>
 #include <stdbool.h>

@@ -9,5 +9,5 @@ else()
 endif()
 
 aux_source_directory(. BLOCKDEV_SRC)
-add_library(blockdev  ${BLOCKDEV_SRC})
+add_library(blockdev SHARED ${BLOCKDEV_SRC})
 
