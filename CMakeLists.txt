@@ -47,7 +47,6 @@ else()
     add_definitions(-DCONFIG_HAVE_OWN_ERRNO=0)
     add_definitions(-DCONFIG_HAVE_OWN_ASSERT=0)
     add_definitions(-DCONFIG_BLOCK_DEV_CACHE_SIZE=16)
-    add_subdirectory(fs_test)
 endif()
 
 macro(output_configure)
