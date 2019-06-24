@@ -24,7 +24,10 @@ def build(target, options):
         ext = 'so'
         device = 'dev'
     elif target.platform == 'osx':
-        type = 'generic'
+        if target.bits == 64:
+            type = 'osx'
+        else:
+            type = 'osx32'
         blockdev = 'linux'
         ext = 'dylib'
         device = 'dev'
