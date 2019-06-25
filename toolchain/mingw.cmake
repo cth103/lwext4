@@ -10,7 +10,7 @@ set(AS                  ${TOOLCHAIN_PREFIX}-as)
 set(AR                  ${TOOLCHAIN_PREFIX}-as)
 set(OBJCOPY             objcopy)
 set(OBJDUMP             objdump)
-set(SIZE                size)
+#set(SIZE                size)
 
 set(CMAKE_FIND_ROOT_PATH /opt/mxe/usr/${TOOLCHAIN_PREFIX})
 
