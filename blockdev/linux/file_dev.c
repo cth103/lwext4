@@ -35,6 +35,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <fcntl.h>
+#include <sys/disk.h>
+#include <unistd.h>
+#endif
 
 /**@brief   Default filename.*/
 static const char *fname = "ext2";
@@ -62,6 +67,30 @@ EXT4_BLOCKDEV_STATIC_INSTANCE(file_dev, EXT4_FILEDEV_BSIZE, 0, file_dev_open,
 /******************************************************************************/
 static int file_dev_open(struct ext4_blockdev *bdev)
 {
+#ifdef __APPLE__
+	/* The fseek/ftell approach to finding the device's size does not seem
+	 * to work on macOS so do it this way instead.
+	 */
+	int dev = open(fname, O_RDONLY);
+	if (dev == -1) {
+		return EIO;
+	}
+
+	uint64_t sectors = 0;
+	if (ioctl(dev, DKIOCGETBLOCKCOUNT, &sectors) < 0) {
+		close(dev);
+		return EFAULT;
+	}
+	uint32_t sector_size = 0;
+	if (ioctl(dev, DKIOCGETBLOCKSIZE, &sector_size) < 0) {
+		close(dev);
+		return EFAULT;
+	}
+
+	off_t size = sectors * sector_size;
+	close(dev);
+#endif
+
 	dev_file = fopen(fname, "r+b");
 
 	if (!dev_file)
@@ -70,11 +99,15 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 	/*No buffering at file.*/
 	setbuf(dev_file, 0);
 
+#ifndef __APPLE__
 	if (fseeko(dev_file, 0, SEEK_END))
 		return EFAULT;
 
+	off_t size = ftello(dev_file);
+#endif
+
 	file_dev.part_offset = 0;
-	file_dev.part_size = ftello(dev_file);
+	file_dev.part_size = size;
 	file_dev.bdif->ph_bcnt = file_dev.part_size / file_dev.bdif->ph_bsize;
 
 	return EOK;
