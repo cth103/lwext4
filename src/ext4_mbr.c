@@ -166,8 +166,8 @@ int ext4_mbr_write(struct ext4_blockdev *parent, struct ext4_mbr_parts *parts, u
 		if (!cyl_part)
 			continue;
 
-		uint32_t part_start = cyl_it * cyl_size;
-		uint32_t part_size = cyl_part * cyl_size;
+		uint64_t part_start = ((uint64_t) cyl_it) * cyl_size;
+		uint64_t part_size = ((uint64_t) cyl_part) * cyl_size;
 
 		if (i == 0) {
 			part_start += 63;
