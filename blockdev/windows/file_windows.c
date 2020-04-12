@@ -67,7 +67,7 @@ EXT4_BLOCKDEV_STATIC_INSTANCE(_filedev, EXT4_IORAW_BSIZE, 0, file_open,
 static int file_open(struct ext4_blockdev *bdev)
 {
 	char path[64];
-	DISK_GEOMETRY pdg;
+	DISK_GEOMETRY_EX pdg;
 	uint64_t disk_size;
 	BOOL bResult = FALSE;
 	DWORD junk;
@@ -84,7 +84,7 @@ static int file_open(struct ext4_blockdev *bdev)
 	}
 
 	bResult =
-	    DeviceIoControl(dev_file, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+	    DeviceIoControl(dev_file, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
 			    &pdg, sizeof(pdg), &junk, (LPOVERLAPPED)NULL);
 
 	if (bResult == FALSE) {
@@ -92,19 +92,16 @@ static int file_open(struct ext4_blockdev *bdev)
 		return EIO;
 	}
 
-	_filedev.bdif->ph_bsize = pdg.BytesPerSector;
+	_filedev.bdif->ph_bsize = pdg.Geometry.BytesPerSector;
 
 	if (part_size == 0) {
 		/* whole disk */
-		disk_size = pdg.Cylinders.QuadPart * (ULONG)pdg.TracksPerCylinder *
-			(ULONG)pdg.SectorsPerTrack * (ULONG)pdg.BytesPerSector;
-
-		_filedev.bdif->ph_bcnt = disk_size / pdg.BytesPerSector;
+		_filedev.bdif->ph_bcnt = pdg.DiskSize.QuadPart / pdg.Geometry.BytesPerSector;
 		_filedev.part_offset = 0;
-		_filedev.part_size = disk_size;
+		_filedev.part_size = pdg.DiskSize.QuadPart;
 	} else {
 		/* specified partition */
-		_filedev.bdif->ph_bcnt = part_size / pdg.BytesPerSector;
+		_filedev.bdif->ph_bcnt = part_size / pdg.Geometry.BytesPerSector;
 		_filedev.part_offset = part_offset;
 		_filedev.part_size = part_size;
 	}
