@@ -32,7 +32,7 @@ def build(target, options):
         ext = 'dylib'
         device = 'dev'
     elif target.platform == 'windows':
-        type = 'mingw'
+        type = 'mingw' if target.bits == 64 else 'mingw-32'
         blockdev = 'windows'
         ext = 'dll'
         device = 'windows'

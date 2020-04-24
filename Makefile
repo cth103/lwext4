@@ -69,6 +69,9 @@ msp430:
 mingw:
 	$(call generate_common,$@,-DWIN32=1)
 
+mingw-32:
+	$(call generate_common,$@,-DWIN32=1)
+
 lib_only:
 	rm -R -f build_lib_only
 	mkdir build_lib_only
