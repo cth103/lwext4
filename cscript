@@ -21,7 +21,7 @@ def build(target, options):
     if target.platform == 'linux':
         type = 'generic'
         blockdev = 'linux'
-        ext = 'so'
+        ext = 'a'
         device = 'dev'
     elif target.platform == 'osx':
         if target.bits == 64:

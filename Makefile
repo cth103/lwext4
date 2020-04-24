@@ -19,19 +19,29 @@ COMMON_DEFINITIONS =                                      \
 	-DVERSION_MINOR=$(VERSION_MINOR)                      \
 	-DVERSION_PATCH=$(VERSION_PATCH)                      \
 	-DVERSION=$(VERSION)                                  \
-	-DLWEXT4_BUILD_SHARED_LIB=ON                          \
 
 define generate_common
 	rm -R -f build_$(1)
 	mkdir build_$(1)
 	cd build_$(1) && cmake -G"Unix Makefiles"           \
 	$(COMMON_DEFINITIONS)                               \
+	-DLWEXT4_BUILD_SHARED_LIB=ON                        \
+	$(2)                                                \
+	-DCMAKE_TOOLCHAIN_FILE=../toolchain/$(1).cmake ..
+endef
+
+define generate_common_static
+	rm -R -f build_$(1)
+	mkdir build_$(1)
+	cd build_$(1) && cmake -G"Unix Makefiles"           \
+	$(COMMON_DEFINITIONS)                               \
+	-DLWEXT4_BUILD_SHARED_LIB=OFF                       \
 	$(2)                                                \
 	-DCMAKE_TOOLCHAIN_FILE=../toolchain/$(1).cmake ..
 endef
 
 generic:
-	$(call generate_common,$@)
+	$(call generate_common_static,$@)
 
 osx:
 	$(call generate_common,$@)

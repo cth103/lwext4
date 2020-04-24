@@ -9,5 +9,11 @@ else()
 endif()
 
 aux_source_directory(. BLOCKDEV_SRC)
-add_library(blockdev SHARED ${BLOCKDEV_SRC})
+
+if(LWEXT4_BUILD_SHARED_LIB)
+  add_library(blockdev SHARED ${BLOCKDEV_SRC})
+else()
+  add_library(blockdev STATIC ${BLOCKDEV_SRC})
+endif()
+
 
