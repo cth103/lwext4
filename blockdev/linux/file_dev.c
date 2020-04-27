@@ -69,76 +69,7 @@ EXT4_BLOCKDEV_STATIC_INSTANCE(file_dev, EXT4_FILEDEV_BSIZE, 0, file_dev_open,
 /******************************************************************************/
 static int file_dev_open(struct ext4_blockdev *bdev)
 {
-#ifdef __APPLE__
-	/* We need to use authopen to open the device.  It asks the user for permission
-	 * then give us an open fd over a socket.
-	 */
-
-	int pipe[2];
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pipe) < 0) {
-		return EFAULT;
-	}
-
-	pid_t pid = fork();
-	if (pid < 0) {
-		return EFAULT;
-	}
-
-	if (pid == 0) {
-		close(pipe[0]);
-		dup2(pipe[1], STDOUT_FILENO);
-		execl("/usr/libexec/authopen", "/usr/libexec/authopen", "-stdoutpipe", "-w", "-a", fname, (char *) 0);
-		exit(-1);
-	}
-
-	close(pipe[1]);
-
-	int dev = -1;
-
-	size_t const data_buffer_size = sizeof(struct cmsghdr) + sizeof(int);
-	char data_buffer[data_buffer_size];
-
-	struct iovec io_vec[1];
-	io_vec[0].iov_base = data_buffer;
-	io_vec[0].iov_len = data_buffer_size;
-
-	socklen_t const cmsg_socket_size = CMSG_SPACE(sizeof(int));
-	char cmsg_socket[cmsg_socket_size];
-	struct msghdr message = { 0 };
-	message.msg_iov = io_vec;
-	message.msg_iovlen = 1;
-	message.msg_control = cmsg_socket;
-	message.msg_controllen = cmsg_socket_size;
-
-	if (recvmsg(pipe[0], &message, 0) <= 0) {
-		return EIO;
-	}
-
-	struct cmsghdr* cmsg_socket_header = CMSG_FIRSTHDR(&message);
-	if (cmsg_socket_header && cmsg_socket_header->cmsg_level == SOL_SOCKET && cmsg_socket_header->cmsg_type == SCM_RIGHTS) {
-		dev = *((int *) CMSG_DATA(cmsg_socket_header));
-	}
-
-	/* The fseek/ftell approach to finding the device's size does not seem
-	 * to work on macOS so do it this way instead.
-	 */
-	uint64_t sectors = 0;
-	if (ioctl(dev, DKIOCGETBLOCKCOUNT, &sectors) < 0) {
-		close(dev);
-		return EFAULT;
-	}
-	uint32_t sector_size = 0;
-	if (ioctl(dev, DKIOCGETBLOCKSIZE, &sector_size) < 0) {
-		close(dev);
-		return EFAULT;
-	}
-
-	off_t size = sectors * sector_size;
-
-	dev_file = fdopen(dev, "r+b");
-#else
 	dev_file = fopen(fname, "r+b");
-#endif
 
 	if (!dev_file)
 		return EIO;
@@ -146,7 +77,23 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 	/*No buffering at file.*/
 	setbuf(dev_file, 0);
 
-#ifndef __APPLE__
+#ifdef __APPLE__
+	/* The fseek/ftell approach to finding the device's size does not seem
+	 * to work on macOS so do it this way instead.
+	 */
+	uint64_t sectors = 0;
+	if (ioctl(fileno(dev_file), DKIOCGETBLOCKCOUNT, &sectors) < 0) {
+		fclose(dev_file);
+		return EFAULT;
+	}
+	uint32_t sector_size = 0;
+	if (ioctl(fileno(dev_file), DKIOCGETBLOCKSIZE, &sector_size) < 0) {
+		fclose(dev_file);
+		return EFAULT;
+	}
+
+	off_t size = sectors * sector_size;
+#else
 	if (fseeko(dev_file, 0, SEEK_END))
 		return EFAULT;
 
