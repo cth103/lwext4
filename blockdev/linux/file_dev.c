@@ -32,6 +32,7 @@
 #include <ext4_config.h>
 #include <ext4_blockdev.h>
 #include <ext4_errno.h>
+#include <ext4_debug.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -71,8 +72,10 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 {
 	dev_file = fopen(fname, "r+b");
 
-	if (!dev_file)
+	if (!dev_file) {
+		printf("fopen of %s failed %d\n", fname, errno);
 		return EIO;
+	}
 
 	/*No buffering at file.*/
 	setbuf(dev_file, 0);
@@ -83,11 +86,13 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 	 */
 	uint64_t sectors = 0;
 	if (ioctl(fileno(dev_file), DKIOCGETBLOCKCOUNT, &sectors) < 0) {
+		printf("ioctl DKIOCGETBLOCKCOUNT failed %d\n", errno);
 		fclose(dev_file);
 		return EFAULT;
 	}
 	uint32_t sector_size = 0;
 	if (ioctl(fileno(dev_file), DKIOCGETBLOCKSIZE, &sector_size) < 0) {
+		printf("ioctl DKIOCGETBLOCKSIZE failed %d\n", errno);
 		fclose(dev_file);
 		return EFAULT;
 	}
@@ -112,12 +117,16 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 static int file_dev_bread(struct ext4_blockdev *bdev, void *buf, uint64_t blk_id,
 			 uint32_t blk_cnt)
 {
-	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET))
+	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET)) {
+		printf("fseeko failed %d\n", errno);
 		return EIO;
+	}
 	if (!blk_cnt)
 		return EOK;
-	if (!fread(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file))
+	if (!fread(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file)) {
+		printf("fread failed %d\n", errno);
 		return EIO;
+	}
 
 	return EOK;
 }
@@ -139,12 +148,16 @@ static void drop_cache(void)
 static int file_dev_bwrite(struct ext4_blockdev *bdev, const void *buf,
 			  uint64_t blk_id, uint32_t blk_cnt)
 {
-	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET))
+	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET)) {
+		printf("fseeko failed %d\n", errno);
 		return EIO;
+	}
 	if (!blk_cnt)
 		return EOK;
-	if (!fwrite(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file))
+	if (!fwrite(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file)) {
+		printf("fwrite failed %d\n", errno);
 		return EIO;
+	}
 
 	drop_cache();
 	return EOK;

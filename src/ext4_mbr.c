@@ -139,8 +139,10 @@ int ext4_mbr_write(struct ext4_blockdev *parent, struct ext4_mbr_parts *parts, u
 
 	ext4_dbg(DEBUG_MBR, DBG_INFO "ext4_mbr_write\n");
 	r = ext4_block_init(parent);
-	if (r != EOK)
+	if (r != EOK) {
+		ext4_dbg(DEBUG_MBR, DBG_INFO "ext4_mbr_write failed\n");
 		return r;
+	}
 
 	disk_size = parent->part_size;
 
@@ -193,8 +195,10 @@ int ext4_mbr_write(struct ext4_blockdev *parent, struct ext4_mbr_parts *parts, u
 
 	mbr->signature = MBR_SIGNATURE;
 	r = ext4_block_writebytes(parent, 0, parent->bdif->ph_bbuf, 512);
-	if (r != EOK)
+	if (r != EOK) {
+		ext4_dbg(DEBUG_MBR, DBG_INFO "ext4_block_writebytes failed\n");
 		goto blockdev_fini;
+	}
 
 
 	blockdev_fini:
