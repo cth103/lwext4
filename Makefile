@@ -49,6 +49,9 @@ osx:
 osx32:
 	$(call generate_common,$@,-DCMAKE_OSX_ARCHITECTURES=i386)
 
+osx-arm64:
+	$(call generate_common,$@)
+
 cortex-m0:
 	$(call generate_common,$@)
 

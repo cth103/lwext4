@@ -1,6 +1,6 @@
 # Name of the target
 set(CMAKE_SYSTEM_NAME Darwin)
-set(CMAKE_SYSTEM_PROCESSOR i386)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
 # Toolchain settings
 set(CMAKE_C_COMPILER    gcc)
