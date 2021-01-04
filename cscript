@@ -48,7 +48,6 @@ def build(target, options):
         blockdev = 'linux'
         ext = 'a'
         device = 'dev'
-        target.command('CFLAGS=-fPIC cmake .')
     elif target.platform == 'osx':
         if target.arch == 'x86_64':
             type = 'osx'
