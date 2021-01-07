@@ -45,6 +45,7 @@ def make_toolchain(filename, arch, sdk_prefix, sdk):
 def build(target, options):
     if target.platform == 'linux':
         type = 'generic'
+        build_suffix = type
         blockdev = 'linux'
         ext = 'a'
         device = 'dev'
@@ -53,12 +54,14 @@ def build(target, options):
             type = 'osx'
         elif target.arch == 'arm64':
             type = 'osx-arm64'
+        build_suffix = 'osx'
         make_toolchain('toolchain/%s.cmake' % type, target.arch, target.sdk_prefix, target.sdk)
         blockdev = 'linux'
         ext = 'dylib'
         device = 'dev'
     elif target.platform == 'windows':
         type = 'mingw' if target.bits == 64 else 'mingw-32'
+        build_suffix = type
         blockdev = 'windows'
         ext = 'dll'
         device = 'windows'
@@ -66,9 +69,9 @@ def build(target, options):
     target.command('mkdir -p %s/include/lwext4' % target.directory)
     target.command('cp -r include/* %s/include/lwext4' % target.directory)
     target.command('make %s' % type)
-    target.command('make -j%d -C build_%s' % (target.parallel, type))
-    target.command('cp -r build_%s/include/generated %s/include/lwext4' % (type, target.directory))
+    target.command('make -j%d -C build_%s' % (target.parallel, build_suffix))
+    target.command('cp -r build_%s/include/generated %s/include/lwext4' % (build_suffix, target.directory))
     target.command('cp blockdev/%s/file_%s.h %s/include/lwext4' % (blockdev, device, target.directory))
     target.command('mkdir -p %s/lib' % target.directory)
-    target.command('cp build_%s/src/liblwext4.%s %s/lib' % (type, ext, target.directory))
-    target.command('cp build_%s/blockdev/libblockdev.%s %s/lib' % (type, ext, target.directory))
+    target.command('cp build_%s/src/liblwext4.%s %s/lib' % (build_suffix, ext, target.directory))
+    target.command('cp build_%s/blockdev/libblockdev.%s %s/lib' % (build_suffix, ext, target.directory))

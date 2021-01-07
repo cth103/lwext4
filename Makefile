@@ -21,69 +21,69 @@ COMMON_DEFINITIONS =                                      \
 	-DVERSION=$(VERSION)                                  \
 
 define generate_common
-	rm -R -f build_$(1)
-	mkdir build_$(1)
-	cd build_$(1) && cmake -G"Unix Makefiles"           \
+	rm -R -f build_$(2)
+	mkdir build_$(2)
+	cd build_$(2) && cmake -G"Unix Makefiles"           \
 	$(COMMON_DEFINITIONS)                               \
 	-DLWEXT4_BUILD_SHARED_LIB=ON                        \
-	$(2)                                                \
+	$(3)                                                \
 	-DCMAKE_TOOLCHAIN_FILE=../toolchain/$(1).cmake ..
 endef
 
 define generate_common_static
-	rm -R -f build_$(1)
-	mkdir build_$(1)
-	cd build_$(1) && cmake -G"Unix Makefiles"           \
+	rm -R -f build_$(2)
+	mkdir build_$(2)
+	cd build_$(2) && cmake -G"Unix Makefiles"           \
 	$(COMMON_DEFINITIONS)                               \
 	-DLWEXT4_BUILD_SHARED_LIB=OFF                       \
-	$(2)                                                \
+	$(3)                                                \
 	-DCMAKE_TOOLCHAIN_FILE=../toolchain/$(1).cmake ..
 endef
 
 generic:
-	$(call generate_common_static,$@)
+	$(call generate_common_static,$@,$@)
 
 osx:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 osx32:
-	$(call generate_common,$@,-DCMAKE_OSX_ARCHITECTURES=i386)
+	$(call generate_common,$@,osx,-DCMAKE_OSX_ARCHITECTURES=i386)
 
 osx-arm64:
-	$(call generate_common,$@)
+	$(call generate_common,$@,osx)
 
 cortex-m0:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 cortex-m0+:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 cortex-m3:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 cortex-m4:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 cortex-m4f:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 cortex-m7:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 arm-sim:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 avrxmega7:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 msp430:
-	$(call generate_common,$@)
+	$(call generate_common,$@,$@)
 
 mingw:
-	$(call generate_common,$@,-DWIN32=1)
+	$(call generate_common,$@,$@,-DWIN32=1)
 
 mingw-32:
-	$(call generate_common,$@,-DWIN32=1)
+	$(call generate_common,$@,$@,-DWIN32=1)
 
 lib_only:
 	rm -R -f build_lib_only
