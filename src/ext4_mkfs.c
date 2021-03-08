@@ -299,7 +299,7 @@ static void fill_sb(struct fs_aux_info *aux_info, struct ext4_mkfs_info *info)
 
 
 static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
-			 struct ext4_mkfs_info *info)
+			 struct ext4_mkfs_info *info, ext4_progress progress, void* progress_context)
 {
 	/* size of the group descriptor */
 	uint32_t dsc_size = ext4_sb_get_desc_size(aux_info->sb);
@@ -369,6 +369,10 @@ static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs
 	int r = EOK;
 
 	for (uint32_t i = 0; i < aux_info->groups; i++) {
+		if (progress) {
+			progress(progress_context, (float) i / aux_info->groups);
+		}
+
 		uint64_t bg_start_block = aux_info->first_data_block +
 			aux_info->first_data_block + i * info->blocks_per_group;
 		uint32_t blk_off = 0;
@@ -457,7 +461,7 @@ Finish:
 	return r;
 }
 
-static int mkfs_init(struct ext4_fs *fs, struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
+static int mkfs_init(struct ext4_fs *fs, struct ext4_blockdev *bd, struct ext4_mkfs_info *info, ext4_progress progress, void* progress_context)
 {
 	int r;
 	struct fs_aux_info aux_info;
@@ -470,7 +474,7 @@ static int mkfs_init(struct ext4_fs *fs, struct ext4_blockdev *bd, struct ext4_m
 	fill_sb(&aux_info, info);
 	memcpy(&fs->sb, aux_info.sb, sizeof(struct ext4_sblock));
 
-	r = write_bgroups(fs, bd, &aux_info, info);
+	r = write_bgroups(fs, bd, &aux_info, info, progress, progress_context);
 	if (r != EOK)
 		goto Finish;
 
@@ -651,7 +655,7 @@ static int create_journal_inode(struct ext4_fs *fs,
 }
 
 int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
-	      struct ext4_mkfs_info *info, int fs_type)
+	      struct ext4_mkfs_info *info, int fs_type, ext4_progress progress, void* progress_context)
 {
 	int r;
 
@@ -778,7 +782,7 @@ int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
 	fs->bdev = bd;
 	fs->read_only = false;
 
-	r = mkfs_init(fs, bd, info);
+	r = mkfs_init(fs, bd, info, progress, progress_context);
 	if (r != EOK)
 		goto cache_fini;
 

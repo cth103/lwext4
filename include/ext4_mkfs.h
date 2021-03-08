@@ -71,8 +71,11 @@ struct ext4_mkfs_info {
 
 int ext4_mkfs_read_info(struct ext4_blockdev *bd, struct ext4_mkfs_info *info);
 
+/* Callback to report progress from 0 to 1 */
+typedef void (*ext4_progress)(void*, float);
+
 int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
-	      struct ext4_mkfs_info *info, int fs_type);
+	      struct ext4_mkfs_info *info, int fs_type, ext4_progress progress, void* progress_context);
 
 #ifdef __cplusplus
 }
