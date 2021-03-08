@@ -368,8 +368,6 @@ static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs
 
 	int r = EOK;
 
-	struct ext4_block b;
-
 	for (uint32_t i = 0; i < aux_info->groups; i++) {
 		uint64_t bg_start_block = aux_info->first_data_block +
 			aux_info->first_data_block + i * info->blocks_per_group;
@@ -381,24 +379,7 @@ static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs
 		}
 
 		/* Group descriptors */
-		uint32_t remaining = aux_info->groups * dsc_size;
-		for (uint32_t j = 0; j < aux_info->bg_desc_blocks; j++) {
-			r = ext4_block_get_noread(bd, &b, bg_start_block + blk_off + j);
-			if (r != EOK) {
-				free(all_bg_desc);
-				return r;
-			}
-			uint32_t this_time = remaining < block_size ? remaining : block_size;
-			memcpy(b.data, ((char *) all_bg_desc) + j * block_size, this_time);
-			memset(b.data + this_time, 0, block_size - this_time);
-			remaining -= this_time;
-			ext4_bcache_set_dirty(b.buf);
-			r = ext4_block_set(bd, &b);
-			if (r != EOK) {
-				free(all_bg_desc);
-				return r;
-			}
-		}
+		ext4_block_writebytes(bd, (bg_start_block + blk_off) * block_size, all_bg_desc, aux_info->groups * dsc_size);
 
 		blk_off += aux_info->bg_desc_blocks;
 
