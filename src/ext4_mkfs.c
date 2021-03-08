@@ -298,7 +298,7 @@ static void fill_sb(struct fs_aux_info *aux_info, struct ext4_mkfs_info *info)
 }
 
 
-static int write_bgroups(struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
+static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
 			 struct ext4_mkfs_info *info)
 {
 	/* size of the group descriptor */
@@ -402,32 +402,17 @@ static int write_bgroups(struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
 
 		blk_off += aux_info->bg_desc_blocks;
 
-		/* Empty block bitmap */
-		r = ext4_block_get_noread(bd, &b, bg_start_block + blk_off + 1);
+		struct ext4_block_group_ref ref;
+		r = ext4_fs_get_block_group_ref(fs, i, &ref);
 		if (r != EOK) {
 			free(all_bg_desc);
-			return r;
-		}
-		memset(b.data, 0, block_size);
-		ext4_bcache_set_dirty(b.buf);
-		r = ext4_block_set(bd, &b);
-		if (r != EOK) {
-			free(all_bg_desc);
-			return r;
+			break;
 		}
 
-		/* Empty inode bitmap */
-		r = ext4_block_get_noread(bd, &b, bg_start_block + blk_off + 2);
+		r = ext4_fs_put_block_group_ref(&ref);
 		if (r != EOK) {
 			free(all_bg_desc);
-			return r;
-		}
-		memset(b.data, 0, block_size);
-		ext4_bcache_set_dirty(b.buf);
-		r = ext4_block_set(bd, &b);
-		if (r != EOK) {
-			free(all_bg_desc);
-			return r;
+			break;
 		}
 	}
 
@@ -491,7 +476,7 @@ Finish:
 	return r;
 }
 
-static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
+static int mkfs_init(struct ext4_fs *fs, struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
 {
 	int r;
 	struct fs_aux_info aux_info;
@@ -502,8 +487,9 @@ static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
 		goto Finish;
 
 	fill_sb(&aux_info, info);
+	memcpy(&fs->sb, aux_info.sb, sizeof(struct ext4_sblock));
 
-	r = write_bgroups(bd, &aux_info, info);
+	r = write_bgroups(fs, bd, &aux_info, info);
 	if (r != EOK)
 		goto Finish;
 
@@ -513,24 +499,6 @@ static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
 
 	Finish:
 	release_fs_aux_info(&aux_info);
-	return r;
-}
-
-static int init_bgs(struct ext4_fs *fs)
-{
-	int r = EOK;
-	struct ext4_block_group_ref ref;
-	uint32_t i;
-	uint32_t bg_count = ext4_block_group_cnt(&fs->sb);
-	for (i = 0; i < bg_count; ++i) {
-		r = ext4_fs_get_block_group_ref(fs, i, &ref);
-		if (r != EOK)
-			break;
-
-		r = ext4_fs_put_block_group_ref(&ref);
-		if (r != EOK)
-			break;
-	}
 	return r;
 }
 
@@ -826,17 +794,16 @@ int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
 	if (r != EOK)
 		goto cache_fini;
 
-	r = mkfs_init(bd, info);
+	fs->bdev = bd;
+	fs->read_only = false;
+
+	r = mkfs_init(fs, bd, info);
 	if (r != EOK)
 		goto cache_fini;
 
 	r = ext4_fs_init(fs, bd, false);
 	if (r != EOK)
 		goto cache_fini;
-
-	r = init_bgs(fs);
-	if (r != EOK)
-		goto fs_fini;
 
 	r = alloc_inodes(fs);
 	if (r != EOK)
