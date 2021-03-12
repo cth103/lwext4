@@ -298,75 +298,39 @@ static void fill_sb(struct fs_aux_info *aux_info, struct ext4_mkfs_info *info)
 }
 
 
-static int write_bgroup_block(struct ext4_blockdev *bd,
-			      struct fs_aux_info *aux_info,
-			      struct ext4_mkfs_info *info,
-			      uint32_t blk)
+static int write_bgroups(struct ext4_fs *fs, struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
+			 struct ext4_mkfs_info *info, ext4_progress progress, void* progress_context)
 {
-	int r = EOK;
-	uint32_t j;
-	struct ext4_block b;
-
+	/* size of the group descriptor */
+	uint32_t dsc_size = ext4_sb_get_desc_size(aux_info->sb);
 	uint32_t block_size = ext4_sb_get_block_size(aux_info->sb);
 
-	for (j = 0; j < aux_info->groups; j++) {
-		uint64_t bg_start_block = aux_info->first_data_block +
-					  j * info->blocks_per_group;
-		uint32_t blk_off = 0;
+	/* Calculate the group descriptors chunk that will be written to each block group */
 
-		blk_off += aux_info->bg_desc_blocks;
-		if (has_superblock(info, j)) {
-			bg_start_block++;
-			blk_off += info->bg_desc_reserve_blocks;
-		}
-
-		uint64_t dsc_blk = bg_start_block + blk;
-
-		r = ext4_block_get_noread(bd, &b, dsc_blk);
-		if (r != EOK)
-			return r;
-
-		memcpy(b.data, aux_info->bg_desc_blk, block_size);
-
-		ext4_bcache_set_dirty(b.buf);
-		r = ext4_block_set(bd, &b);
-		if (r != EOK)
-			return r;
+	/* The whole set of group descriptors */
+	void* all_bg_desc = ext4_calloc(1, aux_info->groups * dsc_size);
+	if (!all_bg_desc) {
+		return ENOMEM;
 	}
 
-	return r;
-}
-
-static int write_bgroups(struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
-			 struct ext4_mkfs_info *info)
-{
-	int r = EOK;
-
-	struct ext4_block b;
-	struct ext4_bgroup *bg_desc;
-
-	uint32_t i;
 	uint32_t bg_free_blk = 0;
 	uint64_t sb_free_blk = 0;
-	uint32_t block_size = ext4_sb_get_block_size(aux_info->sb);
-	uint32_t dsc_size = ext4_sb_get_desc_size(aux_info->sb);
-	uint32_t dsc_per_block = block_size / dsc_size;
-	uint32_t k = 0;
 
-	for (i = 0; i < aux_info->groups; i++) {
+	for (uint32_t i = 0; i < aux_info->groups; i++) {
 		uint64_t bg_start_block = aux_info->first_data_block +
 			aux_info->first_data_block + i * info->blocks_per_group;
 		uint32_t blk_off = 0;
 
-		bg_desc = (void *)(aux_info->bg_desc_blk + k * dsc_size);
+		struct ext4_bgroup* bg_desc = (struct ext4_bgroup *) (((char *) all_bg_desc) + i * dsc_size);
 		bg_free_blk = info->blocks_per_group -
 				aux_info->inode_table_blocks;
 
 		bg_free_blk -= 2;
 		blk_off += aux_info->bg_desc_blocks;
 
-		if (i == (aux_info->groups - 1))
+		if (i == (aux_info->groups - 1)) {
 			bg_free_blk -= aux_info->first_data_block;
+		}
 
 		if (has_superblock(info, i)) {
 			bg_start_block++;
@@ -398,37 +362,46 @@ static int write_bgroups(struct ext4_blockdev *bd, struct fs_aux_info *aux_info,
 				 EXT4_BLOCK_GROUP_INODE_UNINIT);
 
 		sb_free_blk += bg_free_blk;
-
-		r = ext4_block_get_noread(bd, &b, bg_start_block + blk_off + 1);
-		if (r != EOK)
-			return r;
-		memset(b.data, 0, block_size);
-		ext4_bcache_set_dirty(b.buf);
-		r = ext4_block_set(bd, &b);
-		if (r != EOK)
-			return r;
-		r = ext4_block_get_noread(bd, &b, bg_start_block + blk_off + 2);
-		if (r != EOK)
-			return r;
-		memset(b.data, 0, block_size);
-		ext4_bcache_set_dirty(b.buf);
-		r = ext4_block_set(bd, &b);
-		if (r != EOK)
-			return r;
-
-		if (++k != dsc_per_block)
-			continue;
-
-		k = 0;
-		r = write_bgroup_block(bd, aux_info, info, i / dsc_per_block);
-		if (r != EOK)
-			return r;
-
 	}
 
-	r = write_bgroup_block(bd, aux_info, info, i / dsc_per_block);
-	if (r != EOK)
-		return r;
+	/* Write the block group headers */
+
+	int r = EOK;
+
+	for (uint32_t i = 0; i < aux_info->groups; i++) {
+		if (progress) {
+			progress(progress_context, (float) i / aux_info->groups);
+		}
+
+		uint64_t bg_start_block = aux_info->first_data_block +
+			aux_info->first_data_block + i * info->blocks_per_group;
+		uint32_t blk_off = 0;
+
+		if (has_superblock(info, i)) {
+			bg_start_block++;
+			blk_off += info->bg_desc_reserve_blocks;
+		}
+
+		/* Group descriptors */
+		ext4_block_writebytes(bd, (bg_start_block + blk_off) * block_size, all_bg_desc, aux_info->groups * dsc_size);
+
+		blk_off += aux_info->bg_desc_blocks;
+
+		struct ext4_block_group_ref ref;
+		r = ext4_fs_get_block_group_ref(fs, i, &ref);
+		if (r != EOK) {
+			free(all_bg_desc);
+			break;
+		}
+
+		r = ext4_fs_put_block_group_ref(&ref);
+		if (r != EOK) {
+			free(all_bg_desc);
+			break;
+		}
+	}
+
+	free(all_bg_desc);
 
 	ext4_sb_set_free_blocks_cnt(aux_info->sb, sb_free_blk);
 	return r;
@@ -488,7 +461,7 @@ Finish:
 	return r;
 }
 
-static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
+static int mkfs_init(struct ext4_fs *fs, struct ext4_blockdev *bd, struct ext4_mkfs_info *info, ext4_progress progress, void* progress_context)
 {
 	int r;
 	struct fs_aux_info aux_info;
@@ -499,8 +472,9 @@ static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
 		goto Finish;
 
 	fill_sb(&aux_info, info);
+	memcpy(&fs->sb, aux_info.sb, sizeof(struct ext4_sblock));
 
-	r = write_bgroups(bd, &aux_info, info);
+	r = write_bgroups(fs, bd, &aux_info, info, progress, progress_context);
 	if (r != EOK)
 		goto Finish;
 
@@ -510,24 +484,6 @@ static int mkfs_init(struct ext4_blockdev *bd, struct ext4_mkfs_info *info)
 
 	Finish:
 	release_fs_aux_info(&aux_info);
-	return r;
-}
-
-static int init_bgs(struct ext4_fs *fs)
-{
-	int r = EOK;
-	struct ext4_block_group_ref ref;
-	uint32_t i;
-	uint32_t bg_count = ext4_block_group_cnt(&fs->sb);
-	for (i = 0; i < bg_count; ++i) {
-		r = ext4_fs_get_block_group_ref(fs, i, &ref);
-		if (r != EOK)
-			break;
-
-		r = ext4_fs_put_block_group_ref(&ref);
-		if (r != EOK)
-			break;
-	}
 	return r;
 }
 
@@ -699,7 +655,7 @@ static int create_journal_inode(struct ext4_fs *fs,
 }
 
 int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
-	      struct ext4_mkfs_info *info, int fs_type)
+	      struct ext4_mkfs_info *info, int fs_type, ext4_progress progress, void* progress_context)
 {
 	int r;
 
@@ -823,17 +779,16 @@ int ext4_mkfs(struct ext4_fs *fs, struct ext4_blockdev *bd,
 	if (r != EOK)
 		goto cache_fini;
 
-	r = mkfs_init(bd, info);
+	fs->bdev = bd;
+	fs->read_only = false;
+
+	r = mkfs_init(fs, bd, info, progress, progress_context);
 	if (r != EOK)
 		goto cache_fini;
 
 	r = ext4_fs_init(fs, bd, false);
 	if (r != EOK)
 		goto cache_fini;
-
-	r = init_bgs(fs);
-	if (r != EOK)
-		goto fs_fini;
 
 	r = alloc_inodes(fs);
 	if (r != EOK)

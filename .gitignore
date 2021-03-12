@@ -11,3 +11,5 @@ ext_images/
 tags
 
 *~
+.ccls-cache
+

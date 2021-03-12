@@ -57,6 +57,7 @@
 #include <ext4_extent.h>
 
 #include <string.h>
+#include <stdlib.h>
 
 int ext4_fs_init(struct ext4_fs *fs, struct ext4_blockdev *bdev,
 		 bool read_only)
@@ -422,11 +423,12 @@ static int ext4_fs_init_inode_bitmap(struct ext4_block_group_ref *bg_ref)
 	return ext4_block_set(bg_ref->fs->bdev, &b);
 }
 
+
 /**@brief Initialize i-node table in block group.
  * @param bg_ref Reference to block group
  * @return Error code
  */
-static int ext4_fs_init_inode_table(struct ext4_block_group_ref *bg_ref)
+static int ext4_fs_init_inode_table(struct ext4_block_group_ref *bg_ref, int lazy)
 {
 	struct ext4_sblock *sb = &bg_ref->fs->sb;
 	struct ext4_bgroup *bg = bg_ref->block_group;
@@ -434,6 +436,7 @@ static int ext4_fs_init_inode_table(struct ext4_block_group_ref *bg_ref)
 	uint32_t inode_size = ext4_get16(sb, inode_size);
 	uint32_t block_size = ext4_sb_get_block_size(sb);
 	uint32_t inodes_per_block = block_size / inode_size;
+	uint32_t inodes_per_group = ext4_get32(sb, inodes_per_group);
 	uint32_t inodes_in_group = ext4_inodes_in_group_cnt(sb, bg_ref->index);
 	uint32_t table_blocks = inodes_in_group / inodes_per_block;
 	ext4_fsblk_t fblock;
@@ -443,25 +446,15 @@ static int ext4_fs_init_inode_table(struct ext4_block_group_ref *bg_ref)
 
 	/* Compute initialization bounds */
 	ext4_fsblk_t first_block = ext4_bg_get_inode_table_first_block(bg, sb);
-
 	ext4_fsblk_t last_block = first_block + table_blocks - 1;
 
-	/* Initialization of all itable blocks */
-	for (fblock = first_block; fblock <= last_block; ++fblock) {
-		struct ext4_block b;
-		int rc = ext4_trans_block_get_noread(bg_ref->fs->bdev, &b, fblock);
-		if (rc != EOK)
-			return rc;
-
-		memset(b.data, 0, block_size);
-		ext4_trans_set_block_dirty(b.buf);
-
-		rc = ext4_block_set(bg_ref->fs->bdev, &b);
-		if (rc != EOK)
-			return rc;
+	void* zeros = calloc(table_blocks, block_size);
+	if (!zeros) {
+		return ENOMEM;
 	}
-
-	return EOK;
+	int rc = ext4_block_writebytes(bg_ref->fs->bdev, first_block * block_size, zeros, table_blocks * block_size);
+	free(zeros);
+	return rc;
 }
 
 static ext4_fsblk_t ext4_fs_get_descriptor_block(struct ext4_sblock *s,
@@ -617,13 +610,21 @@ int ext4_fs_get_block_group_ref(struct ext4_fs *fs, uint32_t bgid,
 		ext4_bg_clear_flag(bg, EXT4_BLOCK_GROUP_INODE_UNINIT);
 
 		if (!ext4_bg_has_flag(bg, EXT4_BLOCK_GROUP_ITABLE_ZEROED)) {
-			rc = ext4_fs_init_inode_table(ref);
+			/* mke2fs does not initialize inode table blocks to zero,
+			 * unless explicitly set otherwise with the lazy_itable_init
+			 * option being set to 0.  It seems that if EXT4_BLOCK_GROUP_ITABLE_ZEROED
+			 * is not set the kernel will zero out these blocks on the first
+			 * mount.  Zeroing the blocks takes a long time, so we'll try
+			 * not doing it.
+			 */
+#if 0
+			rc = ext4_fs_init_inode_table(ref, lazy);
 			if (rc != EOK) {
 				ext4_block_set(fs->bdev, &ref->block);
 				return rc;
 			}
-
 			ext4_bg_set_flag(bg, EXT4_BLOCK_GROUP_ITABLE_ZEROED);
+#endif
 		}
 
 		ref->dirty = true;

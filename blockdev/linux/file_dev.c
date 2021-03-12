@@ -36,10 +36,13 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #ifdef __APPLE__
 #include <fcntl.h>
 #include <sys/disk.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #endif
@@ -51,7 +54,7 @@ static const char *fname = "ext2";
 #define EXT4_FILEDEV_BSIZE 512
 
 /**@brief   Image file descriptor.*/
-static FILE *dev_file;
+static int dev_file;
 
 #define DROP_LINUXCACHE_BUFFERS 0
 
@@ -70,39 +73,37 @@ EXT4_BLOCKDEV_STATIC_INSTANCE(file_dev, EXT4_FILEDEV_BSIZE, 0, file_dev_open,
 /******************************************************************************/
 static int file_dev_open(struct ext4_blockdev *bdev)
 {
-	dev_file = fopen(fname, "r+b");
+	dev_file = open(fname, O_RDWR);
 
-	if (!dev_file) {
-		printf("fopen of %s failed %d\n", fname, errno);
+	if (dev_file < 0) {
+		printf("open of %s failed %d\n", fname, errno);
 		return EIO;
 	}
 
-	/*No buffering at file.*/
-	setbuf(dev_file, 0);
-
 #ifdef __APPLE__
-	/* The fseek/ftell approach to finding the device's size does not seem
+	/* The lseek approach to finding the device's size does not seem
 	 * to work on macOS so do it this way instead.
 	 */
 	uint64_t sectors = 0;
-	if (ioctl(fileno(dev_file), DKIOCGETBLOCKCOUNT, &sectors) < 0) {
+	if (ioctl(dev_file, DKIOCGETBLOCKCOUNT, &sectors) < 0) {
 		printf("ioctl DKIOCGETBLOCKCOUNT failed %d\n", errno);
-		fclose(dev_file);
+		close(dev_file);
 		return EFAULT;
 	}
 	uint32_t sector_size = 0;
-	if (ioctl(fileno(dev_file), DKIOCGETBLOCKSIZE, &sector_size) < 0) {
+	if (ioctl(dev_file, DKIOCGETBLOCKSIZE, &sector_size) < 0) {
 		printf("ioctl DKIOCGETBLOCKSIZE failed %d\n", errno);
-		fclose(dev_file);
+		close(dev_file);
 		return EFAULT;
 	}
 
 	off_t size = sectors * sector_size;
 #else
-	if (fseeko(dev_file, 0, SEEK_END))
+	off_t size = lseek(dev_file, 0, SEEK_END);
+	if (size == ((off_t) -1)) {
 		return EFAULT;
+	}
 
-	off_t size = ftello(dev_file);
 #endif
 
 	file_dev.part_offset = 0;
@@ -117,14 +118,14 @@ static int file_dev_open(struct ext4_blockdev *bdev)
 static int file_dev_bread(struct ext4_blockdev *bdev, void *buf, uint64_t blk_id,
 			 uint32_t blk_cnt)
 {
-	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET)) {
-		printf("fseeko failed %d\n", errno);
+	if (lseek(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET) < 0) {
+		printf("lseek failed %d\n", errno);
 		return EIO;
 	}
 	if (!blk_cnt)
 		return EOK;
-	if (!fread(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file)) {
-		printf("fread failed %d\n", errno);
+	if (read(dev_file, buf, bdev->bdif->ph_bsize * blk_cnt) < 0) {
+		printf("read failed %d\n", errno);
 		return EIO;
 	}
 
@@ -148,14 +149,14 @@ static void drop_cache(void)
 static int file_dev_bwrite(struct ext4_blockdev *bdev, const void *buf,
 			  uint64_t blk_id, uint32_t blk_cnt)
 {
-	if (fseeko(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET)) {
+	if (lseek(dev_file, blk_id * bdev->bdif->ph_bsize, SEEK_SET) < 0) {
 		printf("fseeko failed %d\n", errno);
 		return EIO;
 	}
 	if (!blk_cnt)
 		return EOK;
-	if (!fwrite(buf, bdev->bdif->ph_bsize * blk_cnt, 1, dev_file)) {
-		printf("fwrite failed %d\n", errno);
+	if (write(dev_file, buf, bdev->bdif->ph_bsize * blk_cnt) < 0) {
+		printf("write failed %d\n", errno);
 		return EIO;
 	}
 
@@ -165,7 +166,7 @@ static int file_dev_bwrite(struct ext4_blockdev *bdev, const void *buf,
 /******************************************************************************/
 static int file_dev_close(struct ext4_blockdev *bdev)
 {
-	fclose(dev_file);
+	close(dev_file);
 	return EOK;
 }
 
