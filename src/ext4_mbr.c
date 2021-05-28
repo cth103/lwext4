@@ -162,21 +162,21 @@ int ext4_mbr_write(struct ext4_blockdev *parent, struct ext4_mbr_parts *parts, u
 
 	mbr->disk_id = disk_id;
 
-	uint32_t cyl_it = 0;
+	uint64_t cyl_it = 0;
 	for (int i = 0; i < 4; ++i) {
-		uint32_t cyl_part = cyl_count * parts->division[i] / 100;
+		uint64_t cyl_part = ((uint64_t) cyl_count) * parts->division[i] / 100;
 		if (!cyl_part)
 			continue;
 
-		uint64_t part_start = ((uint64_t) cyl_it) * cyl_size;
-		uint64_t part_size = ((uint64_t) cyl_part) * cyl_size;
+		uint64_t part_start = cyl_it * cyl_size;
+		uint64_t part_size = cyl_part * cyl_size;
 
 		if (i == 0) {
 			part_start += 63;
 			part_size -= 63 * parent->bdif->ph_bsize;
 		}
 
-		uint32_t cyl_end = cyl_part + cyl_it - 1;
+		uint64_t cyl_end = cyl_part + cyl_it - 1;
 
 		mbr->part_entry[i].status = 0;
 		mbr->part_entry[i].chs1[0] = i ? 0 : 1;;
